@@ -392,3 +392,9 @@ Lệnh này sẽ hiển thị các tiến trình liên quan đến `cron`, cho b
 - Tạo shell script để tạo 5 file chứa chuỗi ký tự ngẫu nhiên.
 
 - Thiết lập cron job để chạy script mỗi 10 phút.
+
+---
+
+## Tìm hiểu thêm về các câu lệnh: Truy cập vào website để tham khảo
+
+[https://explainshell.com/](https://explainshell.com/)
