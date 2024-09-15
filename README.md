@@ -35,7 +35,7 @@ Mở file Dockerfile và thêm các dòng sau:
 FROM ubuntu:latest
 
 # Cập nhật danh sách package và cài đặt các gói cần thiết: cron và bash
-RUN apt-get update && apt-get install -y cron bash
+RUN apt-get update && apt-get install -y cron bash vim
 
 # Tạo thư mục /scripts để chứa script
 RUN mkdir /scripts
@@ -46,11 +46,12 @@ COPY create_random_files.sh /scripts/create_random_files.sh
 # Cấp quyền thực thi cho script
 RUN chmod +x /scripts/create_random_files.sh
 
-# Thêm cron job vào file crontab. Cron job này sẽ chạy script mỗi 10 phút.
-RUN echo "*/10 * * * * /scripts/create_random_files.sh" >> /etc/crontab
+# Thêm cron job vào crontab của người dùng root
+RUN (crontab -l 2>/dev/null; echo "*/1 * * * * /scripts/create_random_files.sh") | crontab -
 
-# Khởi động cron và giữ cho container chạy bằng cách sử dụng 'tail -f /dev/null'
-CMD cron && tail -f /dev/null
+# Chạy script ngay lập tức và sau đó khởi động cron và giữ cho container chạy bằng cách sử dụng 'tail -f /dev/null'
+CMD /scripts/create_random_files.sh && cron && tail -f /dev/null
+
 
 ```
 
@@ -58,7 +59,7 @@ _Giải thích thư viện và câu lệnh_
 
 - `FROM ubuntu`: Dòng này tải image Ubuntu mới nhất từ Docker Hub làm nền tảng cho container.
 
-- `RUN apt-get update && apt-get install -y cron bash`: Cập nhật danh sách gói và cài đặt hai gói cần thiết là cron để chạy cron job và bash để chạy script.
+- `RUN apt-get update && apt-get install -y cron bash vim`: Cập nhật danh sách gói và cài đặt hai gói cần thiết là cron để chạy cron job, bash và vim để chạy script.
 
 - `cron`:
 
@@ -71,6 +72,8 @@ _Giải thích thư viện và câu lệnh_
   - Bash (Bourne-Again SHell) là giao diện dòng lệnh (CLI) mặc định mà bạn sẽ sử dụng trong hầu hết các bản phân phối Linux. Đó là trình thông dịch được sử dụng trong Terminal. Bạn có thể sử dụng nó để cài đặt ứng dụng, chạy các chương trình dòng lệnh và thêm chức năng mới thông qua script.
 
   - Shell script cho phép thực hiện mọi việc trong Bash có thể thực hiện với các ngôn ngữ lập trình cơ bản khác, tất cả đều có quyền truy cập thuận tiện vào hệ điều hành và file của bạn. Các lệnh trong Terminal thường là những đoạn script rất đơn giản. Bạn có thể đưa việc sử dụng Terminal lên một tầm cao mới bằng cách viết các script Bash riêng.
+
+- `vim`: là một trình soạn thảo văn bản
 
   Câu lệnh sau:
 
@@ -98,38 +101,41 @@ _Giải thích thư viện và câu lệnh_
 
   Lệnh này đảm bảo rằng tệp script `/scripts/create_random_files.sh` có quyền thực thi và có thể được chạy trong quá trình build của Docker image.
 
-- `RUN echo "*/10 * * * * /scripts/create_random_files.sh" >> /etc/crontab`
+- `RUN (crontab -l 2>/dev/null; echo "*/1 * * * * /scripts/create_random_files.sh") | crontab -`
 
-  1. **`RUN`**: Lệnh trong Dockerfile để thực thi một lệnh trong quá trình build Docker image. Kết quả sẽ được lưu lại trong image.
+  1. **`RUN`**: Lệnh để thực thi các câu lệnh trong quá trình build Docker image.
 
-  2. **`echo "*/10 * * * * /scripts/create_random_files.sh"`**: Lệnh `echo` dùng để in ra chuỗi trong dấu ngoặc kép. Chuỗi `"*/10 * * * * /scripts/create_random_files.sh"` là một cron job, chỉ định rằng `/scripts/create_random_files.sh` sẽ được thực thi tự động bởi cron.
+  2. **`(crontab -l 2>/dev/null; echo "*/1 * * * * /scripts/create_random_files.sh")`**:
 
-  - `*/10`: Mỗi 10 phút.
-  - `* * * *`: Tương ứng với phút, giờ, ngày, tháng, và ngày trong tuần (đều là dấu `*` có nghĩa là mọi giá trị).
-  - `/scripts/create_random_files.sh`: Đường dẫn đến tệp script sẽ được chạy.
+  - **`crontab -l`**: Lệnh này hiển thị các cron jobs hiện tại của người dùng.
+  - **`2>/dev/null`**: Chuyển hướng thông báo lỗi (nếu không có cron job nào) vào `/dev/null`, để ngăn không hiển thị lỗi nếu crontab trống.
+  - **`echo "*/1 * * * * /scripts/create_random_files.sh"`**: Thêm dòng này vào danh sách các cron jobs hiện có. Đây là một cron job được đặt để chạy script `/scripts/create_random_files.sh` mỗi phút.
 
-  3. **`>> /etc/crontab`**: Ký hiệu `>>` dùng để nối thêm nội dung vào cuối tệp `/etc/crontab`. Tệp này là tệp cấu hình của cron, nơi các tác vụ tự động (cron jobs) được định nghĩa.
-
-  #### Ý nghĩa tổng thể:
-
-  Lệnh này thêm một dòng vào tệp `/etc/crontab` để cấu hình một cron job, giúp script `/scripts/create_random_files.sh` tự động chạy cứ mỗi 10 phút một lần.
-
-- `CMD cron && tail -f /dev/null`
-
-  1. **`CMD`**: Lệnh này chỉ định lệnh hoặc tập lệnh sẽ được chạy khi container Docker khởi động. Không giống như `RUN`, lệnh này chỉ thực thi khi container đang chạy chứ không phải trong quá trình build image.
-
-  2. **`cron`**: Đây là lệnh khởi động **cron daemon** (là một dịch vụ nền), có nhiệm vụ thực hiện các tác vụ đã được định nghĩa trong tệp cron, như tác vụ bạn đã thêm vào `/etc/crontab`. Cron daemon sẽ tiếp tục chạy trong nền và thực hiện các công việc định kỳ, ví dụ như chạy tệp `create_random_files.sh` mỗi 10 phút một lần.
-
-  3. **`&&`**: Là toán tử logic cho phép nối hai lệnh lại với nhau. Lệnh thứ hai chỉ được thực thi nếu lệnh đầu tiên thành công.
-
-  4. **`tail -f /dev/null`**: Lệnh `tail -f` thường được dùng để theo dõi nội dung của một file liên tục trong thời gian thực. Ở đây, `/dev/null` là một file đặc biệt trong hệ thống Unix (Linux), nơi mọi dữ liệu ghi vào đó sẽ bị xóa ngay lập tức.
-
-  Trong trường hợp này, lệnh này giữ cho container chạy liên tục mà không bị tắt vì `cron` chạy dưới dạng một service nền, và Docker container sẽ dừng lại nếu không có lệnh nào chạy ở foreground.
+  3. **`| crontab -`**: Dùng để ghi đè hoặc thêm cron job vào danh sách cron job của người dùng. Dấu `-` chỉ định rằng crontab sẽ đọc từ đầu vào tiêu chuẩn (output từ lệnh `echo`).
 
   #### Ý nghĩa tổng thể:
 
-  - **Khởi động cron** để quản lý các tác vụ định kỳ (như script được cấu hình trong `/etc/crontab`).
-  - **Giữ cho container hoạt động** liên tục bằng cách chạy lệnh `tail -f /dev/null`, ngăn container bị dừng ngay lập tức sau khi cron daemon khởi động.
+  Lệnh này sẽ thêm một cron job vào crontab mà không làm mất đi các cron jobs hiện có. Cron job này được thiết lập để chạy script `/scripts/create_random_files.sh` mỗi phút.
+
+- `CMD /scripts/create_random_files.sh && cron && tail -f /dev/null`
+
+  1. **`CMD`**: Dùng trong Dockerfile để chỉ định lệnh được thực thi khi container khởi động. Chỉ có thể có một lệnh `CMD` trong Dockerfile, và nếu có nhiều lệnh, chỉ lệnh cuối cùng sẽ được thực thi.
+
+  2. **`/scripts/create_random_files.sh`**: Đây là lệnh đầu tiên được chạy trong container. Nó sẽ thực thi script `/scripts/create_random_files.sh`, có thể là một script để tạo ra 5 file chứa chuỗi ký tự ngẫu nhiên như bạn đã mô tả.
+
+  3. **`&&`**: Toán tử logic nối các lệnh. Lệnh tiếp theo (`cron`) chỉ chạy nếu lệnh trước đó (`/scripts/create_random_files.sh`) thành công.
+
+  4. **`cron`**: Khởi động **cron daemon** để quản lý các cron jobs đã được thiết lập. Cron sẽ chạy các tác vụ định kỳ trong nền.
+
+  5. **`tail -f /dev/null`**: Giữ container hoạt động bằng cách chạy `tail -f /dev/null`, lệnh này theo dõi file `/dev/null` và không bao giờ kết thúc. Điều này giúp container không bị dừng ngay sau khi khởi động cron, vì `cron` chạy dưới dạng service nền và không giữ container ở trạng thái chạy foreground.
+
+  #### Ý nghĩa tổng thể:
+
+  1. Thực thi script `create_random_files.sh` khi container khởi động.
+  2. Khởi động cron daemon để thực hiện các cron jobs.
+  3. Giữ cho container tiếp tục chạy bằng cách sử dụng lệnh `tail -f /dev/null`.
+
+  Tuy nhiên, việc chạy script ngay lập tức và cron cùng nhau có thể gây ra sự chồng chéo nếu cron cũng được thiết lập để chạy script đó. Cần kiểm tra sự hợp lý của quy trình này.
 
 ---
 
@@ -250,7 +256,7 @@ Mở file Dockerfile và thêm các dòng sau:
 FROM ubuntu:latest
 
 # Cập nhật các gói và cài đặt cron, bash
-RUN apt-get update && apt-get install -y cron bash
+RUN apt-get update && apt-get install -y cron bash vim
 
 # Đảm bảo cron có thể chạy trong container
 CMD cron -f
