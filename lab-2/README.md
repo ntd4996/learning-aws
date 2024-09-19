@@ -242,12 +242,9 @@ Cấu hình web server (nginx hoặc apache) sau đó host 1 trang web tĩnh
    - Mở file khóa riêng:
 
    ```bash
-   sudo nano /etc/nginx/ssl/priv
+   sudo nano /etc/nginx/ssl/privkey.pem
    ```
 
-key.pem
-
-````
 - Dán nội dung khóa riêng vào file này.
 
 ---
@@ -255,16 +252,20 @@ key.pem
 ### Bước 10: Kiểm tra và khởi động lại NGINX
 
 1. **Kiểm tra cấu hình NGINX**:
+
 - Trước khi khởi động lại NGINX, kiểm tra lại cấu hình để đảm bảo không có lỗi cú pháp:
+
 ```bash
 sudo nginx -t
-````
+```
 
 2. **Khởi động lại NGINX**:
-   - Nếu mọi thứ đều ổn, khởi động lại NGINX:
-   ```bash
-   sudo systemctl restart nginx
-   ```
+
+- Nếu mọi thứ đều ổn, khởi động lại NGINX:
+
+```bash
+sudo systemctl restart nginx
+```
 
 ---
 
