@@ -418,3 +418,32 @@ File `docker-compose.yml` này được cấu hình để chạy ba dịch vụ:
 3. **PostgreSQL**: Cơ sở dữ liệu PostgreSQL, chạy trên cổng `5432`, với dữ liệu được lưu trữ trong volume `postgres_data`.
 
 Các dịch vụ này có thể giao tiếp với nhau thông qua mạng nội bộ của Docker, và toàn bộ ứng dụng được chạy trên cùng một file cấu hình.
+
+Để chạy file `docker-compose.yml`, bạn sử dụng câu lệnh sau:
+
+```bash
+docker-compose up
+```
+
+### Giải thích chi tiết:
+- `docker-compose`: Đây là công cụ giúp quản lý và chạy các container Docker dựa trên cấu hình trong file `docker-compose.yml`.
+- `up`: Lệnh này yêu cầu Docker Compose khởi động và chạy tất cả các service được định nghĩa trong file `docker-compose.yml`. Nếu container nào chưa có, nó sẽ tự động build và khởi chạy các container này.
+
+#### Một số tùy chọn bổ sung khi chạy lệnh này:
+- `-d`: Chạy các container trong chế độ nền (detached mode). Ví dụ:
+
+  ```bash
+  docker-compose up -d
+  ```
+  Điều này cho phép các container tiếp tục chạy sau khi bạn thoát khỏi terminal.
+
+- `--build`: Buộc Docker Compose build lại các image trước khi chạy container, dù các image đó đã có sẵn. Ví dụ:
+
+  ```bash
+  docker-compose up --build
+  ```
+
+Khi lệnh `docker-compose up` được thực thi, nó sẽ:
+1. Đọc file `docker-compose.yml`.
+2. Tạo mạng lưới các container cần thiết.
+3. Khởi chạy các container với cấu hình đã định nghĩa (môi trường, volume, mạng, phụ thuộc, v.v.).
