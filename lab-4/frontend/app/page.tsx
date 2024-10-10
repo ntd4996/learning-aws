@@ -1,352 +1,217 @@
 "use client";
+import React, { Fragment, useEffect, useState } from "react";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
+import { z } from "zod";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
-import React, { useState, useRef, useEffect, RefObject } from "react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "react-beautiful-dnd";
-import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
-import axios from "axios";
-import { debounce } from "lodash";
+const LOGIN = {
+  MIN_LENGTH_ID: 1,
+  MAX_LENGTH_ID: 50,
+  MIN_LENGTH_PASSWORD: 1,
+  MAX_LENGTH_PASSWORD: 255,
+  MESSAGE_REQUIRED_ID: "Email is required",
+  MESSAGE_REQUIRED_PASSWORD: "Password is required",
+  MESSAGE_LOGIN_FAILED: "Email or password is incorrect",
+  MESSAGE_INVALID_EMAIL: "Invalid email address",
+};
 
-interface Card {
-  id: string;
-  content: string;
-}
+const schemaLogin = z.object({
+  email: z
+    .string()
+    .min(LOGIN.MIN_LENGTH_ID, {
+      message: LOGIN.MESSAGE_REQUIRED_ID,
+    })
+    .email(LOGIN.MESSAGE_INVALID_EMAIL),
+  password: z.string().min(LOGIN.MIN_LENGTH_PASSWORD, {
+    message: LOGIN.MESSAGE_REQUIRED_PASSWORD,
+  }),
+});
+type IFormLogin = z.infer<typeof schemaLogin>;
 
-interface Column {
-  id: string;
-  title: string;
-  cards: Card[];
-}
+const LoginForm = () => {
+  const { push } = useRouter();
 
-interface UpdateColumnsAPI {
-  (updatedColumns: Column): void;
-}
+  const [showPassword, setShowPassword] = useState(false);
 
-const KanbanBoard: React.FC = () => {
-  const [columns, setColumns] = useState<Column[]>([]);
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
-  const [editingCard, setEditingCard] = useState<string | null>(null);
-  const editInputRef: RefObject<HTMLInputElement> = useRef(null);
+  const { control, handleSubmit } = useForm<IFormLogin>({
+    defaultValues: { email: "", password: "" },
+    resolver: zodResolver(schemaLogin),
+    mode: "all",
+  });
+
+  const onSubmit = async (data: IFormLogin) => {
+    console.log(data);
+    await login(data);
+  };
+
+  const {
+    mutate: login,
+    isPending,
+    data: dataLogin,
+  } = useMutation({
+    mutationFn: async (data: object) => {
+      const result = await signIn("credentials", {
+        ...data,
+        redirect: false,
+      });
+
+      return result;
+    },
+  });
 
   useEffect(() => {
-    if (editingColumn !== null || editingCard !== null) {
-      editInputRef.current?.focus();
+    if (dataLogin?.ok) {
+      push("/board");
     }
-  }, [editingColumn, editingCard]);
-
-  useEffect(() => {
-    const fetchColumns = async () => {
-      try {
-        const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/columns`
-        );
-        setColumns(response.data);
-      } catch (error) {
-        console.error("Error fetching columns:", error);
-      }
-    };
-
-    fetchColumns();
-  }, []);
-
-  const createColumnsAPI: UpdateColumnsAPI = (updatedColumns) => {
-    axios
-      .post(`${process.env.NEXT_PUBLIC_BASE_URL}/columns`, updatedColumns)
-      .then(() => {
-        console.log("API called with columns:", updatedColumns);
-      })
-      .catch(() => {
-        console.error("Error calling API with columns:", updatedColumns);
-      });
-    console.log("API called with columns:", updatedColumns);
-  };
-  const deleteColumnsAPI = (columnId: string) => {
-    axios
-      .delete(`${process.env.NEXT_PUBLIC_BASE_URL}/columns/${columnId}`)
-      .then(() => {
-        console.log("API called with columns:", columnId);
-      })
-      .catch(() => {
-        console.error("Error calling API with columns:", columnId);
-      });
-    console.log("API called with columns:", columnId);
-  };
-  const updateColumnsAPI: UpdateColumnsAPI = (updatedColumns) => {
-    axios
-      .patch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/columns/${updatedColumns.id}`,
-        updatedColumns
-      )
-      .then(() => {
-        console.log("API called with columns:", updatedColumns.id);
-      })
-      .catch(() => {
-        console.error("Error calling API with columns:", updatedColumns.id);
-      });
-    console.log("API called with columns:", updatedColumns.id);
-  };
-
-  const debouncedCreateColumnsAPI = debounce(createColumnsAPI, 500);
-  const debouncedUpdateColumnsAPI = debounce(updateColumnsAPI, 500);
-  const debouncedDeleteColumnsAPI = debounce(deleteColumnsAPI, 500);
-
-  const addColumn = () => {
-    const newColumn: Column = {
-      id: `column-${Date.now()}`,
-      title: "New Column",
-      cards: [],
-    };
-    const updatedColumns = [...columns, newColumn];
-    setColumns(updatedColumns);
-    debouncedCreateColumnsAPI(newColumn);
-  };
-
-  const editColumnTitle = (columnId: string, newTitle: string) => {
-    const updatedColumns = columns.map((col) =>
-      col.id === columnId ? { ...col, title: newTitle } : col
-    );
-    setColumns(updatedColumns);
-    const columnFind = updatedColumns.find((col) => col.id === columnId);
-    if (columnFind) {
-      debouncedUpdateColumnsAPI(columnFind);
+    if (dataLogin?.error) {
+      toast.error(LOGIN.MESSAGE_LOGIN_FAILED);
     }
-  };
-
-  const deleteColumn = (columnId: string) => {
-    setColumns(columns.filter((col) => col.id !== columnId));
-    debouncedDeleteColumnsAPI(columnId);
-  };
-
-  const addCard = (columnId: string) => {
-    const newCard: Card = {
-      id: `card-${Date.now()}`,
-      content: "New Card",
-    };
-    const updatedColumns = columns.map((col) =>
-      col.id === columnId ? { ...col, cards: [...col.cards, newCard] } : col
-    );
-    setColumns(updatedColumns);
-    const columnFind = updatedColumns.find((col) => col.id === columnId);
-    if (columnFind) {
-      debouncedUpdateColumnsAPI(columnFind);
-    }
-  };
-
-  const editCard = (columnId: string, cardId: string, newText: string) => {
-    const updatedColumns = columns.map((col) =>
-      col.id === columnId
-        ? {
-            ...col,
-            cards: col.cards.map((card) =>
-              card.id === cardId ? { ...card, content: newText } : card
-            ),
-          }
-        : col
-    );
-    setColumns(updatedColumns);
-    const columnFind = updatedColumns.find((col) => col.id === columnId);
-    if (columnFind) {
-      debouncedUpdateColumnsAPI(columnFind);
-    }
-  };
-
-  const deleteCard = (columnId: string, cardId: string) => {
-    const updatedColumns = columns.map((col) =>
-      col.id === columnId
-        ? { ...col, cards: col.cards.filter((card) => card.id !== cardId) }
-        : col
-    );
-    setColumns(updatedColumns);
-    const columnFind = updatedColumns.find((col) => col.id === columnId);
-    if (columnFind) {
-      debouncedUpdateColumnsAPI(columnFind);
-    }
-  };
-
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-
-    if (!destination) {
-      return;
-    }
-
-    const sourceColumn = columns.find((col) => col.id === source.droppableId);
-    const destColumn = columns.find(
-      (col) => col.id === destination.droppableId
-    );
-
-    if (sourceColumn && destColumn) {
-      const sourceCards = Array.from(sourceColumn.cards);
-      const [removed] = sourceCards.splice(source.index, 1);
-      const destCards = Array.from(destColumn.cards);
-      destCards.splice(destination.index, 0, removed);
-
-      const updatedColumns = columns.map((col) => {
-        if (col.id === source.droppableId) {
-          return { ...col, cards: sourceCards };
-        } else if (col.id === destination.droppableId) {
-          return { ...col, cards: destCards };
-        } else {
-          return col;
-        }
-      });
-
-      setColumns(updatedColumns);
-      updatedColumns.map((col) => updateColumnsAPI(col));
-    }
-  };
+  }, [dataLogin, push]);
 
   return (
-    <div className="p-4 bg-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">
-        Không Nest thì Next Board
-      </h1>
-      <div className="flex flex-wrap gap-4">
-        <DragDropContext onDragEnd={onDragEnd}>
-          {columns.map((column) => (
-            <Droppable key={column.id} droppableId={column.id} type="group">
-              {(provided) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="bg-white p-4 rounded-lg shadow-md flex-1 min-w-[250px] max-w-[350px]"
-                >
-                  <div className="flex justify-between items-center mb-4">
-                    {editingColumn === column.id ? (
-                      <input
-                        ref={editInputRef}
-                        type="text"
-                        value={column.title}
-                        onChange={(e) =>
-                          setColumns(
-                            columns.map((col) =>
-                              col.id === column.id
-                                ? { ...col, title: e.target.value }
-                                : col
-                            )
-                          )
-                        }
-                        onBlur={() => editColumnTitle(column.id, column.title)}
-                        onKeyPress={(e) => {
-                          if (e.key === "Enter") {
-                            editColumnTitle(column.id, column.title);
-                          }
-                        }}
-                        className="w-full px-2 py-1 border rounded"
-                      />
-                    ) : (
-                      <h2
-                        className="text-xl font-semibold cursor-pointer"
-                        onClick={() => setEditingColumn(column.id)}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 p-4">
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md"
+      >
+        <h2 className="text-3xl font-bold text-center text-purple-600 mb-6">
+          Không Nest thì Next!
+        </h2>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Email
+            </label>
+            <Controller
+              name="email"
+              control={control}
+              render={({ field, fieldState }) => (
+                <div className="relative">
+                  <motion.input
+                    whileFocus={{ scale: 1.02 }}
+                    {...field}
+                    className={`w-full px-3 py-2 border ${
+                      !!fieldState.error ? "border-red-500" : "border-gray-300"
+                    } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                    placeholder="Enter your email"
+                    list="email-suggestions"
+                  />
+                  <AnimatePresence>
+                    {!!fieldState.error && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="text-red-500 text-xs mt-1"
                       >
-                        {column.title}
-                      </h2>
+                        {fieldState.error?.message}
+                      </motion.p>
                     )}
-                    <button
-                      onClick={() => deleteColumn(column.id)}
-                      className="text-red-500 hover:text-red-700 transition-colors"
-                      aria-label="Delete column"
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
-                  {column.cards.map((card, index) => (
-                    <Draggable
-                      key={card.id}
-                      draggableId={card.id}
-                      index={index}
-                    >
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          className="bg-gray-50 p-3 mb-2 rounded border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          {editingCard === card.id ? (
-                            <input
-                              ref={editInputRef}
-                              type="text"
-                              value={card.content}
-                              onChange={(e) =>
-                                setColumns(
-                                  columns.map((col) =>
-                                    col.id === column.id
-                                      ? {
-                                          ...col,
-                                          cards: col.cards.map((c) =>
-                                            c.id === card.id
-                                              ? {
-                                                  ...c,
-                                                  content: e.target.value,
-                                                }
-                                              : c
-                                          ),
-                                        }
-                                      : col
-                                  )
-                                )
-                              }
-                              onBlur={() =>
-                                editCard(column.id, card.id, card.content)
-                              }
-                              onKeyPress={(e) => {
-                                if (e.key === "Enter") {
-                                  editCard(column.id, card.id, card.content);
-                                }
-                              }}
-                              className="w-full px-2 py-1 border rounded"
-                            />
-                          ) : (
-                            <div className="flex justify-between items-start">
-                              <p>{card.content}</p>
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => setEditingCard(card.id)}
-                                  className="text-blue-500 hover:text-blue-700 transition-colors"
-                                  aria-label="Edit card"
-                                >
-                                  <FaEdit />
-                                </button>
-                                <button
-                                  onClick={() => deleteCard(column.id, card.id)}
-                                  className="text-red-500 hover:text-red-700 transition-colors"
-                                  aria-label="Delete card"
-                                >
-                                  <FaTrash />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                  <button
-                    onClick={() => addCard(column.id)}
-                    className="mt-2 w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
-                  >
-                    <FaPlus className="mr-2" /> Add Card
-                  </button>
+                  </AnimatePresence>
                 </div>
               )}
-            </Droppable>
-          ))}
-        </DragDropContext>
-        <button
-          onClick={addColumn}
-          className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors flex items-center justify-center h-12"
-        >
-          <FaPlus className="mr-2" /> Add Column
-        </button>
-      </div>
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Password
+            </label>
+            <div className="relative">
+              <Controller
+                name="password"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <Fragment>
+                    <div className="relative">
+                      <motion.input
+                        whileFocus={{ scale: 1.02 }}
+                        type={showPassword ? "text" : "password"}
+                        {...field}
+                        className={`w-full px-3 py-2 border ${
+                          !!fieldState.error
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                        placeholder="Enter your password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-500"
+                      >
+                        {showPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    </div>
+                    <AnimatePresence>
+                      {!!fieldState.error && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="text-red-500 text-xs mt-1"
+                        >
+                          {fieldState.error.message}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </Fragment>
+                )}
+              />
+            </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            type="submit"
+            className="w-full cursor-pointer bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-300"
+            disabled={isPending}
+          >
+            {isPending ? (
+              <div className="flex items-center justify-center">
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Logging in...
+              </div>
+            ) : (
+              "Login"
+            )}
+          </motion.button>
+        </form>
+      </motion.div>
     </div>
   );
 };
 
-export default KanbanBoard;
+export default LoginForm;

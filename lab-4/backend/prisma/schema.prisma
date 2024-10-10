@@ -18,3 +18,17 @@ model Column {
   title String
   cards Json
 }
+
+model User {
+  id                String           @id @default(uuid())
+  email             String           @unique
+  password          String
+  imageBackgroundId String?
+  imageBackground   ImageBackground? @relation(fields: [imageBackgroundId], references: [id])
+}
+
+model ImageBackground {
+  id   String @id @default(uuid())
+  url  String
+  User User[]
+}
